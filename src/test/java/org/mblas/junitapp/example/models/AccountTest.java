@@ -8,19 +8,37 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInfo;
+import org.junit.jupiter.api.TestReporter;
+import org.junit.jupiter.api.Timeout;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvFileSource;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mblas.junitapp.example.exceptions.InsufficientMoneyException;
 
 import java.math.BigDecimal;
+import java.time.Duration;
+import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 class AccountTest {
 
     Account account;
 
-    @BeforeEach
-    void init() {
-        this.account = new Account("Miguel", new BigDecimal("1000.12345"));
+    TestInfo testInfo;
 
+    TestReporter testReporter;
+
+    @BeforeEach
+    void init(TestInfo testInfo, TestReporter testReporter) {
+        this.account = new Account("Miguel", new BigDecimal("1000.12345"));
+        this.testInfo = testInfo;
+        this.testReporter = testReporter;
     }
 
     @AfterEach
@@ -41,6 +59,7 @@ class AccountTest {
     @Test
     @DisplayName("Test account name")
     void testNameAccount() {
+        testReporter.publishEntry("execute..." + testInfo.getDisplayName() + " " + testInfo.getTestMethod().get().getName());
         String expected = "Miguel";
         String actual = account.getPerson();
         assertEquals(expected, actual);
@@ -139,13 +158,102 @@ class AccountTest {
     }
 
     @Test
-    @DisplayName("Test account balance")
+    @DisplayName("Test account balance Dev")
     void testBalanceAccountDev() {
         boolean isDev = "dev".equals(System.getProperty("ENV"));
-        assumeTrue();
+        assumeTrue(isDev);
         assertNotNull(account.getBalance());
         assertEquals(1000.12345, account.getBalance().doubleValue());
         assertFalse(account.getBalance().compareTo(BigDecimal.ZERO) < 0);
         assertTrue(account.getBalance().compareTo(BigDecimal.ZERO) > 0);
+    }
+
+    @Test
+    @DisplayName("Test account balance Dev 2")
+    void testBalanceAccountDev2() {
+        boolean isDev = "dev".equals(System.getProperty("ENV"));
+        assumingThat(isDev, () -> {
+            assertNotNull(account.getBalance());
+            assertEquals(1000.12345, account.getBalance().doubleValue());
+            assertFalse(account.getBalance().compareTo(BigDecimal.ZERO) < 0);
+            assertTrue(account.getBalance().compareTo(BigDecimal.ZERO) > 0);
+        });
+    }
+
+    @Tag("Param")
+    @ParameterizedTest(name = "number {index} test with value {0} - {argumentsWithNames}")
+    @ValueSource(strings = {"100", "200", "300", "500", "700", "1000"})
+    @DisplayName("Test debit account value source")
+    void testDebitAccountValueSource(String amount) {
+        account.debit(new BigDecimal(amount ));
+        assertNotNull(account.getBalance());
+        assertTrue(account.getBalance().compareTo(BigDecimal.ZERO) > 0);
+    }
+
+    @Tag("Param")
+
+    @ParameterizedTest(name = "number {index} test with value {0} - {argumentsWithNames}")
+    @CsvSource({"1,100", "2,200", "3,300", "4,500", "5,700", "6,1000"})
+    @DisplayName("Test debit account csv source")
+    void testDebitAccountCsvSource(String index, String amount) {
+        System.out.println(index + "->" + amount);
+        account.debit(new BigDecimal(amount ));
+        assertNotNull(account.getBalance());
+        assertTrue(account.getBalance().compareTo(BigDecimal.ZERO) > 0);
+    }
+
+    @Tag("Param")
+    @ParameterizedTest(name = "number {index} test with value {0} - {argumentsWithNames}")
+    @CsvFileSource(resources = "/data.csv")
+    @DisplayName("Test debit account csv file source")
+    void testDebitAccountCsvFileSource(String amount) {
+        account.debit(new BigDecimal(amount ));
+        assertNotNull(account.getBalance());
+        assertTrue(account.getBalance().compareTo(BigDecimal.ZERO) > 0);
+    }
+
+    @Tag("Param")
+    @ParameterizedTest(name = "number {index} test with value {0} - {argumentsWithNames}")
+    @MethodSource("amountList")
+    @DisplayName("Test debit account csv method source")
+    void testDebitAccountMethodSource(String amount) {
+        account.debit(new BigDecimal(amount ));
+        assertNotNull(account.getBalance());
+        assertTrue(account.getBalance().compareTo(BigDecimal.ZERO) > 0);
+    }
+
+    static List<String> amountList() {
+        return Arrays.asList("100", "200", "300", "500", "700", "1000");
+    }
+
+    @Tag("Param")
+    @ParameterizedTest(name = "number {index} test with value {0} - {argumentsWithNames}")
+    @CsvSource({"200,100", "250,200", "300,300", "500,500", "750,700", "1000,1000"})
+    @DisplayName("Test debit account csv source 2")
+    void testDebitAccountCsvSource2(String balance, String amount) {
+        System.out.println(balance + "->" + amount);
+        account.setBalance(new BigDecimal(balance));
+        account.debit(new BigDecimal(amount));
+        assertNotNull(account.getBalance());
+        assertTrue(account.getBalance().compareTo(BigDecimal.ZERO) >= 0);
+    }
+
+    @Test
+    @Timeout(2)
+    void testTimeOut() throws InterruptedException {
+        TimeUnit.SECONDS.sleep(1);
+    }
+
+    @Test
+    @Timeout(value = 2000, unit = TimeUnit.MILLISECONDS)
+    void testTimeOut2() throws InterruptedException {
+        TimeUnit.SECONDS.sleep(1);
+    }
+
+    @Test
+    void testTimeOutWithAssertions() throws InterruptedException {
+        assertTimeout(Duration.ofSeconds(5), () -> {
+            TimeUnit.MILLISECONDS.sleep(1000);
+        });
     }
 }
